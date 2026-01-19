@@ -1,0 +1,2864 @@
+{
+	"info": {
+		"_postman_id": "marketing-events-relay-v1",
+		"name": "Marketing Events Relay API",
+		"description": "# Marketing Events Relay Microservice API Collection\n\nThis collection contains all API endpoints for the Marketing Events Relay Microservice.\n\n## Overview\n\nThe Marketing Events Relay Microservice receives marketing events from OMS (Order Management System) and forwards them to server-side Google Tag Manager (sGTM) or direct platform APIs.\n\n## Authentication\n\nAll endpoints (except health checks) require HTTP Basic Authentication:\n- **Username**: Configured via `BASIC_AUTH_USERNAME` environment variable\n- **Password**: Configured via `BASIC_AUTH_PASSWORD` environment variable\n\n## API Sections\n\n### 1. Health Checks\nLiveness and readiness endpoints for monitoring.\n\n### 2. Admin APIs (`/admin/v1/*`)\nCRUD operations for:\n- **Storefronts**: Manage tenant storefronts\n- **Platforms**: Manage ad/analytics platforms (Meta, GA4, TikTok, etc.)\n- **Credentials**: Manage encrypted platform credentials per storefront\n- **sGTM Configs**: Manage server-side GTM configurations\n\n### 3. Event Ingestion (`/v1/events`)\nReceive batched marketing events from OMS for processing and forwarding.\n\n## Environment Variables Required\n\n| Variable | Description |\n|----------|-------------|\n| `base_url` | API base URL (e.g., `http://localhost:8000`) |\n| `username` | Basic auth username |\n| `password` | Basic auth password |\n\n## Quick Start\n\n1. Import this collection into Postman\n2. Import the `Local.postman_environment.json` environment file\n3. Update environment variables as needed\n4. Run the \"Health Checks\" folder first to verify connectivity\n5. Use the \"Setup Test Data\" folder to create initial data\n6. Test event ingestion with various scenarios\n\n## Tips\n\n- Variables like `{{storefront_id}}` are automatically set by successful create requests\n- Run requests in order within each folder for proper data setup\n- Check the \"Tests\" tab to see validation scripts\n- Use \"Run Collection\" to execute all tests in sequence",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "basic",
+		"basic": [
+			{
+				"key": "username",
+				"value": "{{username}}",
+				"type": "string"
+			},
+			{
+				"key": "password",
+				"value": "{{password}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Health Checks",
+			"description": "## Health Check Endpoints\n\nThese endpoints are used by load balancers and orchestration systems (Kubernetes, Docker) to monitor the service health.\n\n### No Authentication Required\n\nHealth endpoints do not require authentication to allow external monitoring systems to check service status.\n\n### Endpoints\n\n- **GET /health** - Liveness probe (is the service running?)\n- **GET /health/ready** - Readiness probe (is the service ready to accept traffic?)",
+			"item": [
+				{
+					"name": "Liveness Check",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Test: Liveness endpoint returns 200 OK",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"// Test: Response has correct structure",
+									"pm.test(\"Response has status field\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData.status).to.equal('healthy');",
+									"});",
+									"",
+									"// Test: Response time is acceptable",
+									"pm.test(\"Response time is less than 500ms\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(500);",
+									"});",
+									"",
+									"// Test: Content-Type is JSON",
+									"pm.test(\"Content-Type is application/json\", function () {",
+									"    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "## Liveness Probe\n\nReturns the basic health status of the service. Used by Kubernetes/Docker for liveness checks.\n\n### Response\n\n```json\n{\n    \"status\": \"healthy\",\n    \"service\": \"marketing-events-relay\",\n    \"version\": \"1.0.0\"\n}\n```\n\n### Use Case\n\nIf this endpoint fails, the service should be restarted."
+					},
+					"response": [
+						{
+							"name": "Healthy Response",
+							"originalRequest": {
+								"method": "GET",
+								"url": {
+									"raw": "{{base_url}}/health",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"health"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"body": "{\n    \"status\": \"healthy\",\n    \"service\": \"marketing-events-relay\",\n    \"version\": \"1.0.0\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Readiness Check",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Test: Readiness endpoint returns 200 OK",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"// Test: Response has correct structure",
+									"pm.test(\"Response has ready field\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('ready');",
+									"    pm.expect(jsonData.ready).to.equal(true);",
+									"});",
+									"",
+									"// Test: Database connection is healthy",
+									"pm.test(\"Database is connected\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.checks && jsonData.checks.database) {",
+									"        pm.expect(jsonData.checks.database).to.equal('ok');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health/ready",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health",
+								"ready"
+							]
+						},
+						"description": "## Readiness Probe\n\nChecks if the service is ready to accept traffic. Validates database connectivity.\n\n### Response\n\n```json\n{\n    \"ready\": true,\n    \"checks\": {\n        \"database\": \"ok\"\n    }\n}\n```\n\n### Use Case\n\nUsed by load balancers to determine if traffic should be routed to this instance."
+					},
+					"response": [
+						{
+							"name": "Ready Response",
+							"originalRequest": {
+								"method": "GET",
+								"url": {
+									"raw": "{{base_url}}/health/ready",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"health",
+										"ready"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"body": "{\n    \"ready\": true,\n    \"checks\": {\n        \"database\": \"ok\"\n    }\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Admin API - Storefronts",
+			"description": "## Storefront Management\n\nStorefronts represent tenant configurations. Each storefront (e.g., Bosley, Pfizer) can have its own:\n- sGTM configuration\n- Platform credentials\n- Kill switch (is_active flag)\n\n### Kill Switch\n\nSetting `is_active: false` will reject all incoming events for that storefront.\n\n### Workflow\n\n1. Create a storefront with unique `storefront_id`\n2. Configure sGTM settings for the storefront\n3. Add platform credentials for event forwarding\n4. Start sending events",
+			"item": [
+				{
+					"name": "Create Storefront",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Test: Storefront created successfully",
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"// Test: Response has required fields",
+									"pm.test(\"Response has id and storefront_id\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('storefront_id');",
+									"    pm.expect(jsonData).to.have.property('name');",
+									"    pm.expect(jsonData).to.have.property('is_active');",
+									"});",
+									"",
+									"// Save storefront ID for subsequent requests",
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('storefront_db_id', jsonData.id);",
+									"    pm.collectionVariables.set('storefront_id', jsonData.storefront_id);",
+									"    console.log('Saved storefront_db_id:', jsonData.id);",
+									"}",
+									"",
+									"// Test: is_active defaults to true",
+									"pm.test(\"is_active defaults to true\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.is_active).to.equal(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Generate unique storefront_id for testing",
+									"const timestamp = Date.now();",
+									"pm.collectionVariables.set('test_storefront_id', `test-store-${timestamp}`);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"storefront_id\": \"{{test_storefront_id}}\",\n    \"name\": \"Test Store\",\n    \"domain\": \"teststore.example.com\",\n    \"description\": \"Test storefront for API validation\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts"
+							]
+						},
+						"description": "## Create a New Storefront\n\nCreates a new storefront configuration.\n\n### Request Body\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `storefront_id` | string | Yes | Unique identifier (lowercase, alphanumeric with hyphens/underscores) |\n| `name` | string | Yes | Display name |\n| `domain` | string | No | Storefront domain |\n| `description` | string | No | Description |\n| `is_active` | boolean | No | Kill switch (default: true) |\n\n### Notes\n\n- `storefront_id` must be unique and will be normalized to lowercase\n- This ID is used in event ingestion to route events"
+					},
+					"response": [
+						{
+							"name": "Created Successfully",
+							"originalRequest": {
+								"method": "POST",
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"storefront_id\": \"bosley\",\n    \"name\": \"Bosley Store\",\n    \"domain\": \"bosley.com\",\n    \"description\": \"Bosley hair restoration products\",\n    \"is_active\": true\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/admin/v1/storefronts",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"v1",
+										"storefronts"
+									]
+								}
+							},
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"body": "{\n    \"id\": 1,\n    \"storefront_id\": \"bosley\",\n    \"name\": \"Bosley Store\",\n    \"domain\": \"bosley.com\",\n    \"description\": \"Bosley hair restoration products\",\n    \"is_active\": true,\n    \"created_at\": \"2026-01-15T10:00:00Z\",\n    \"updated_at\": \"2026-01-15T10:00:00Z\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Create Storefront - Bosley (Sample)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('bosley_storefront_id', jsonData.id);",
+									"    console.log('Saved bosley_storefront_id:', jsonData.id);",
+									"}",
+									"",
+									"pm.test(\"Status code is 201 or 409 (already exists)\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"storefront_id\": \"bosley\",\n    \"name\": \"Bosley Store\",\n    \"domain\": \"bosley.com\",\n    \"description\": \"Bosley hair restoration products storefront\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts"
+							]
+						},
+						"description": "Creates the Bosley storefront used in OMS event examples."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Storefront - Pfizer (Sample)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('pfizer_storefront_id', jsonData.id);",
+									"    console.log('Saved pfizer_storefront_id:', jsonData.id);",
+									"}",
+									"",
+									"pm.test(\"Status code is 201 or 409 (already exists)\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"storefront_id\": \"pfizer\",\n    \"name\": \"Pfizer Store\",\n    \"domain\": \"pfizer.com\",\n    \"description\": \"Pfizer pharmaceutical products storefront\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts"
+							]
+						},
+						"description": "Creates the Pfizer storefront used in OMS event examples."
+					},
+					"response": []
+				},
+				{
+					"name": "List Storefronts",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has pagination structure\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('items');",
+									"    pm.expect(jsonData).to.have.property('total');",
+									"    pm.expect(jsonData).to.have.property('skip');",
+									"    pm.expect(jsonData).to.have.property('limit');",
+									"});",
+									"",
+									"pm.test(\"Items is an array\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts?skip=0&limit=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts"
+							],
+							"query": [
+								{
+									"key": "skip",
+									"value": "0",
+									"description": "Number of records to skip (pagination offset)"
+								},
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Maximum number of records to return"
+								},
+								{
+									"key": "is_active",
+									"value": "true",
+									"description": "Filter by active status",
+									"disabled": true
+								}
+							]
+						},
+						"description": "## List All Storefronts\n\nReturns a paginated list of storefronts.\n\n### Query Parameters\n\n| Parameter | Type | Description |\n|-----------|------|-------------|\n| `skip` | integer | Records to skip (default: 0) |\n| `limit` | integer | Max records to return (default: 100, max: 100) |\n| `is_active` | boolean | Filter by active status |"
+					},
+					"response": []
+				},
+				{
+					"name": "List Active Storefronts Only",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"All returned storefronts are active\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    jsonData.items.forEach(function(item) {",
+									"        pm.expect(item.is_active).to.equal(true);",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts?is_active=true",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts"
+							],
+							"query": [
+								{
+									"key": "is_active",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Filter storefronts to show only active ones (kill switch not engaged)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Storefront by ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has storefront details\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('storefront_id');",
+									"    pm.expect(jsonData).to.have.property('name');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts/{{storefront_db_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts",
+								"{{storefront_db_id}}"
+							]
+						},
+						"description": "## Get Storefront Details\n\nRetrieve a specific storefront by its database ID.\n\n### Path Parameters\n\n| Parameter | Description |\n|-----------|-------------|\n| `id` | Database ID of the storefront |"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Storefront",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Name was updated\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.name).to.equal('Updated Store Name');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Store Name\",\n    \"description\": \"Updated description for the storefront\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts/{{storefront_db_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts",
+								"{{storefront_db_id}}"
+							]
+						},
+						"description": "## Update Storefront\n\nUpdate storefront properties. Only provided fields will be updated.\n\n### Updatable Fields\n\n- `name`\n- `domain`\n- `description`\n- `is_active` (kill switch)\n\n### Note\n\n`storefront_id` cannot be changed after creation."
+					},
+					"response": []
+				},
+				{
+					"name": "Disable Storefront (Kill Switch)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Storefront is now inactive\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.is_active).to.equal(false);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"is_active\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts/{{storefront_db_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts",
+								"{{storefront_db_id}}"
+							]
+						},
+						"description": "## Engage Kill Switch\n\nDisable a storefront by setting `is_active: false`.\n\n### Effect\n\nAll incoming events for this storefront will be rejected with an error message indicating the storefront is disabled."
+					},
+					"response": []
+				},
+				{
+					"name": "Enable Storefront",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Storefront is now active\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.is_active).to.equal(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts/{{storefront_db_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts",
+								"{{storefront_db_id}}"
+							]
+						},
+						"description": "Re-enable a previously disabled storefront."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Storefront",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 204\", function () {",
+									"    pm.response.to.have.status(204);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts/{{storefront_db_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts",
+								"{{storefront_db_id}}"
+							]
+						},
+						"description": "## Delete Storefront\n\nPermanently delete a storefront.\n\n### Warning\n\nThis will also delete all associated:\n- sGTM configurations\n- Platform credentials\n- Event history (depending on cascade settings)\n\n### Returns\n\n`204 No Content` on success."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Non-Existent Storefront (404)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"Response has error detail\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('detail');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts/99999",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts",
+								"99999"
+							]
+						},
+						"description": "Test 404 response when requesting non-existent storefront."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin API - Platforms",
+			"description": "## Platform Management\n\nPlatforms represent ad/analytics destinations (Meta CAPI, GA4, TikTok, etc.).\n\n### Tiers\n\n- **Tier 1**: Primary platforms (Meta, Google, TikTok) - highest priority\n- **Tier 2**: Secondary platforms\n- **Tier 3**: Tertiary platforms\n\n### Categories\n\n- `advertising`: Ad platforms (Meta, TikTok, Snapchat)\n- `analytics`: Analytics platforms (GA4, Mixpanel)\n- `marketing`: Marketing automation platforms",
+			"item": [
+				{
+					"name": "Create Platform - Meta CAPI",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('meta_platform_id', jsonData.id);",
+									"    console.log('Saved meta_platform_id:', jsonData.id);",
+									"}",
+									"",
+									"pm.test(\"Status code is 201 or 409\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"platform_code\": \"meta_capi\",\n    \"name\": \"Meta Conversions API\",\n    \"category\": \"advertising\",\n    \"tier\": 1,\n    \"auth_type\": \"access_token\",\n    \"api_base_url\": \"https://graph.facebook.com/v18.0\",\n    \"credential_schema\": \"{\\\"access_token\\\": \\\"string\\\", \\\"pixel_id\\\": \\\"string\\\"}\",\n    \"description\": \"Meta Conversions API for Facebook and Instagram advertising\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/platforms",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"platforms"
+							]
+						},
+						"description": "Create the Meta Conversions API platform configuration."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Platform - GA4",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('ga4_platform_id', jsonData.id);",
+									"    console.log('Saved ga4_platform_id:', jsonData.id);",
+									"}",
+									"",
+									"pm.test(\"Status code is 201 or 409\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"platform_code\": \"ga4\",\n    \"name\": \"Google Analytics 4\",\n    \"category\": \"analytics\",\n    \"tier\": 1,\n    \"auth_type\": \"api_key\",\n    \"api_base_url\": \"https://www.google-analytics.com\",\n    \"credential_schema\": \"{\\\"measurement_id\\\": \\\"string\\\", \\\"api_secret\\\": \\\"string\\\"}\",\n    \"description\": \"Google Analytics 4 Measurement Protocol\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/platforms",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"platforms"
+							]
+						},
+						"description": "Create the Google Analytics 4 platform configuration."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Platform - TikTok",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('tiktok_platform_id', jsonData.id);",
+									"}",
+									"",
+									"pm.test(\"Status code is 201 or 409\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"platform_code\": \"tiktok_events\",\n    \"name\": \"TikTok Events API\",\n    \"category\": \"advertising\",\n    \"tier\": 2,\n    \"auth_type\": \"access_token\",\n    \"api_base_url\": \"https://business-api.tiktok.com\",\n    \"credential_schema\": \"{\\\"access_token\\\": \\\"string\\\", \\\"pixel_code\\\": \\\"string\\\"}\",\n    \"description\": \"TikTok Events API for advertising attribution\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/platforms",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"platforms"
+							]
+						},
+						"description": "Create the TikTok Events API platform configuration."
+					},
+					"response": []
+				},
+				{
+					"name": "List All Platforms",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has pagination structure\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('items');",
+									"    pm.expect(jsonData).to.have.property('total');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/platforms",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"platforms"
+							]
+						},
+						"description": "List all configured platforms."
+					},
+					"response": []
+				},
+				{
+					"name": "List Tier 1 Platforms",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"All platforms are Tier 1\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    jsonData.items.forEach(function(item) {",
+									"        pm.expect(item.tier).to.equal(1);",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/platforms?tier=1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"platforms"
+							],
+							"query": [
+								{
+									"key": "tier",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Filter platforms by tier (1 = highest priority)."
+					},
+					"response": []
+				},
+				{
+					"name": "List Advertising Platforms",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"All platforms are advertising category\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    jsonData.items.forEach(function(item) {",
+									"        pm.expect(item.category).to.equal('advertising');",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/platforms?category=advertising",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"platforms"
+							],
+							"query": [
+								{
+									"key": "category",
+									"value": "advertising"
+								}
+							]
+						},
+						"description": "Filter platforms by category (advertising, analytics, marketing)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Platform by ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has platform details\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('platform_code');",
+									"    pm.expect(jsonData).to.have.property('name');",
+									"    pm.expect(jsonData).to.have.property('tier');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/platforms/{{meta_platform_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"platforms",
+								"{{meta_platform_id}}"
+							]
+						},
+						"description": "Get details of a specific platform."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Platform",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"Updated Meta Conversions API description\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/platforms/{{meta_platform_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"platforms",
+								"{{meta_platform_id}}"
+							]
+						},
+						"description": "Update platform configuration."
+					},
+					"response": []
+				},
+				{
+					"name": "Disable Platform (Kill Switch)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Platform is disabled\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.is_active).to.equal(false);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"is_active\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/platforms/{{meta_platform_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"platforms",
+								"{{meta_platform_id}}"
+							]
+						},
+						"description": "Disable a platform globally. All credentials for this platform will stop forwarding events."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin API - Credentials",
+			"description": "## Credential Management\n\nCredentials store encrypted API tokens for each storefront/platform combination.\n\n### Security\n\n- Credentials are encrypted using Fernet symmetric encryption\n- Decrypted values are only returned when explicitly requested (`?decrypt=true`)\n- Never log or expose decrypted credentials\n\n### Destination Types\n\n- `sgtm`: Forward events via server-side GTM\n- `direct`: Forward events directly to platform API",
+			"item": [
+				{
+					"name": "Create Credential",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('credential_id', jsonData.id);",
+									"}",
+									"",
+									"pm.test(\"Credentials are NOT returned by default\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.not.have.property('credentials');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"storefront_id\": {{bosley_storefront_id}},\n    \"platform_id\": {{meta_platform_id}},\n    \"credentials\": {\n        \"access_token\": \"EAAGm0PX4ZCps_YOUR_ACCESS_TOKEN_HERE\",\n        \"pixel_id\": \"123456789012345\"\n    },\n    \"destination_type\": \"sgtm\",\n    \"pixel_id\": \"123456789012345\",\n    \"account_id\": \"act_987654321\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/credentials",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"credentials"
+							]
+						},
+						"description": "## Create Platform Credential\n\nStore encrypted credentials for a storefront/platform combination.\n\n### Request Body\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `storefront_id` | integer | Yes | Database ID of storefront |\n| `platform_id` | integer | Yes | Database ID of platform |\n| `credentials` | object | Yes | Platform-specific credentials (will be encrypted) |\n| `destination_type` | string | No | `sgtm` or `direct` (default: sgtm) |\n| `pixel_id` | string | No | Platform pixel/tag ID |\n| `account_id` | string | No | Platform account ID |\n| `is_active` | boolean | No | Enable/disable (default: true) |\n\n### Note\n\nThe `credentials` object is encrypted before storage and will NOT be returned in the response."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Credential (Without Decrypt)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Credentials are NOT returned\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.not.have.property('credentials');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/credentials/{{credential_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"credentials",
+								"{{credential_id}}"
+							]
+						},
+						"description": "Get credential without decrypting sensitive data."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Credential (With Decrypt)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Decrypted credentials ARE returned\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('credentials');",
+									"    pm.expect(jsonData.credentials).to.be.an('object');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/credentials/{{credential_id}}?decrypt=true",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"credentials",
+								"{{credential_id}}"
+							],
+							"query": [
+								{
+									"key": "decrypt",
+									"value": "true"
+								}
+							]
+						},
+						"description": "## Get Credential with Decryption\n\n**Warning**: This returns sensitive credential data. Use with caution.\n\n### Query Parameters\n\n| Parameter | Value | Description |\n|-----------|-------|-------------|\n| `decrypt` | true | Include decrypted credentials in response |"
+					},
+					"response": []
+				},
+				{
+					"name": "List Credentials",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has pagination structure\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('items');",
+									"    pm.expect(jsonData).to.have.property('total');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/credentials",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"credentials"
+							]
+						},
+						"description": "List all credentials (without decryption)."
+					},
+					"response": []
+				},
+				{
+					"name": "List Credentials by Storefront",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"All credentials belong to specified storefront\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    const storefrontId = parseInt(pm.collectionVariables.get('bosley_storefront_id'));",
+									"    jsonData.items.forEach(function(item) {",
+									"        pm.expect(item.storefront_id).to.equal(storefrontId);",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/credentials?storefront_id={{bosley_storefront_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"credentials"
+							],
+							"query": [
+								{
+									"key": "storefront_id",
+									"value": "{{bosley_storefront_id}}"
+								}
+							]
+						},
+						"description": "Filter credentials by storefront."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Credential",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"credentials\": {\n        \"access_token\": \"EAAGm0PX4ZCps_NEW_ACCESS_TOKEN\",\n        \"pixel_id\": \"123456789012345\"\n    },\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/credentials/{{credential_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"credentials",
+								"{{credential_id}}"
+							]
+						},
+						"description": "Update credential with new encrypted values."
+					},
+					"response": []
+				},
+				{
+					"name": "Disable Credential (Kill Switch)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Credential is disabled\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.is_active).to.equal(false);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"is_active\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/credentials/{{credential_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"credentials",
+								"{{credential_id}}"
+							]
+						},
+						"description": "Disable credential to stop forwarding to this specific platform for this storefront."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Credential",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 204\", function () {",
+									"    pm.response.to.have.status(204);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/credentials/{{credential_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"credentials",
+								"{{credential_id}}"
+							]
+						},
+						"description": "Permanently delete a credential."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin API - sGTM Configs",
+			"description": "## sGTM Configuration Management\n\nServer-side Google Tag Manager configurations per storefront.\n\n### Client Types\n\n- **ga4**: Use GA4 Measurement Protocol format\n- **custom**: Use custom JSON format\n\n### GA4 Client Type\n\nRequires `measurement_id` and optionally `api_secret`. Events are formatted as GA4 Measurement Protocol.\n\n### Custom Client Type\n\nUses `custom_endpoint_path` and `custom_headers`. Events are sent as raw JSON.",
+			"item": [
+				{
+					"name": "Create sGTM Config (GA4)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('sgtm_config_id', jsonData.id);",
+									"}",
+									"",
+									"pm.test(\"Client type is ga4\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.client_type).to.equal('ga4');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"storefront_id\": {{bosley_storefront_id}},\n    \"sgtm_url\": \"https://tags.upscript.com\",\n    \"client_type\": \"ga4\",\n    \"container_id\": \"GTM-XXXXXXX\",\n    \"measurement_id\": \"G-XXXXXXXXXX\",\n    \"api_secret\": \"your_ga4_api_secret\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/sgtm-configs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"sgtm-configs"
+							]
+						},
+						"description": "## Create sGTM Config with GA4 Client\n\n### Request Body\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `storefront_id` | integer | Yes | Database ID of storefront |\n| `sgtm_url` | string | Yes | sGTM container URL |\n| `client_type` | string | Yes | `ga4` or `custom` |\n| `container_id` | string | No | GTM container ID |\n| `measurement_id` | string | Yes (for ga4) | GA4 measurement ID |\n| `api_secret` | string | No | GA4 API secret (encrypted) |\n| `is_active` | boolean | No | Enable/disable (default: true) |"
+					},
+					"response": []
+				},
+				{
+					"name": "Create sGTM Config (Custom)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 or 409\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+									"});",
+									"",
+									"if (pm.response.code === 201) {",
+									"    pm.test(\"Client type is custom\", function () {",
+									"        const jsonData = pm.response.json();",
+									"        pm.expect(jsonData.client_type).to.equal('custom');",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"storefront_id\": {{pfizer_storefront_id}},\n    \"sgtm_url\": \"https://tags.upscript.com\",\n    \"client_type\": \"custom\",\n    \"container_id\": \"GTM-YYYYYYY\",\n    \"custom_endpoint_path\": \"/collect\",\n    \"custom_headers\": {\n        \"X-Api-Key\": \"your-custom-api-key\",\n        \"X-Source\": \"marketing-relay\"\n    },\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/sgtm-configs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"sgtm-configs"
+							]
+						},
+						"description": "## Create sGTM Config with Custom Client\n\n### Request Body (Custom)\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `storefront_id` | integer | Yes | Database ID of storefront |\n| `sgtm_url` | string | Yes | sGTM container URL |\n| `client_type` | string | Yes | `custom` |\n| `custom_endpoint_path` | string | No | Custom path (default: /collect) |\n| `custom_headers` | object | No | Additional headers to send |"
+					},
+					"response": []
+				},
+				{
+					"name": "List sGTM Configs",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has pagination structure\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('items');",
+									"    pm.expect(jsonData).to.have.property('total');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/sgtm-configs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"sgtm-configs"
+							]
+						},
+						"description": "List all sGTM configurations."
+					},
+					"response": []
+				},
+				{
+					"name": "List Active sGTM Configs",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"All configs are active\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    jsonData.items.forEach(function(item) {",
+									"        pm.expect(item.is_active).to.equal(true);",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/sgtm-configs?is_active=true",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"sgtm-configs"
+							],
+							"query": [
+								{
+									"key": "is_active",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Filter to show only active sGTM configurations."
+					},
+					"response": []
+				},
+				{
+					"name": "Get sGTM Config by ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has config details\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('sgtm_url');",
+									"    pm.expect(jsonData).to.have.property('client_type');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/sgtm-configs/{{sgtm_config_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"sgtm-configs",
+								"{{sgtm_config_id}}"
+							]
+						},
+						"description": "Get details of a specific sGTM configuration."
+					},
+					"response": []
+				},
+				{
+					"name": "Update sGTM Config",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"URL was updated\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.sgtm_url).to.equal('https://new-tags.upscript.com');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sgtm_url\": \"https://new-tags.upscript.com\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/sgtm-configs/{{sgtm_config_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"sgtm-configs",
+								"{{sgtm_config_id}}"
+							]
+						},
+						"description": "Update sGTM configuration."
+					},
+					"response": []
+				},
+				{
+					"name": "Disable sGTM Config (Kill Switch)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Config is disabled\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.is_active).to.equal(false);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"is_active\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/sgtm-configs/{{sgtm_config_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"sgtm-configs",
+								"{{sgtm_config_id}}"
+							]
+						},
+						"description": "Disable sGTM forwarding for this storefront."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete sGTM Config",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 204\", function () {",
+									"    pm.response.to.have.status(204);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/sgtm-configs/{{sgtm_config_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"sgtm-configs",
+								"{{sgtm_config_id}}"
+							]
+						},
+						"description": "Permanently delete an sGTM configuration."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Event Ingestion",
+			"description": "## Event Ingestion API\n\nReceive batched marketing events from OMS (Order Management System).\n\n### Endpoint\n\n`POST /v1/events`\n\n### OMS Batch Format\n\nThe OMS Marketing Analytics Event Generator sends events in this format:\n\n```json\n{\n    \"count\": 4000,\n    \"data\": [...events...],\n    \"error\": \"\",\n    \"next_index\": 1000,\n    \"next_url\": \"...\",\n    \"previous_index\": \"\",\n    \"previous_url\": \"\"\n}\n```\n\n### Event Fields\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `storefront_id` | string | Yes | Storefront code (e.g., 'bosley') |\n| `event_name` | string | Yes | Event type (e.g., 'purchase_completed') |\n| `event_time` | datetime | Yes | When event occurred |\n| `order_id` | string | Yes | Unique identifier for the event |\n| `t-value` | string | No | Affiliate tracking value |\n| `session_id` | string | No | User session ID |\n| `utm_source` | string | No | UTM source |\n| `utm_medium` | string | No | UTM medium |\n| `utm_campaign` | string | No | UTM campaign |\n| `order_revenue` | float | No | Order value |\n| `order_created_date` | datetime | No | Order creation date |\n| `order_ship_date` | datetime | No | Order ship date |\n\n### Response\n\n```json\n{\n    \"accepted\": 3,\n    \"rejected\": 1,\n    \"event_ids\": [\"order_1\", \"order_2\", \"order_3\"],\n    \"errors\": [\n        {\"event_id\": \"order_4\", \"error\": \"Storefront not found\"}\n    ]\n}\n```",
+			"item": [
+				{
+					"name": "Ingest Full OMS Batch (Sample)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 202\", function () {",
+									"    pm.response.to.have.status(202);",
+									"});",
+									"",
+									"pm.test(\"Response has accepted count\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('accepted');",
+									"    pm.expect(jsonData).to.have.property('rejected');",
+									"    pm.expect(jsonData).to.have.property('event_ids');",
+									"    pm.expect(jsonData).to.have.property('errors');",
+									"});",
+									"",
+									"pm.test(\"event_ids is an array\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.event_ids).to.be.an('array');",
+									"});",
+									"",
+									"pm.test(\"All 3 events were accepted\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.accepted).to.equal(3);",
+									"    pm.expect(jsonData.rejected).to.equal(0);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Generate unique order IDs for each test run",
+									"const timestamp = Date.now();",
+									"pm.collectionVariables.set('order_id_1', `order_${timestamp}_001`);",
+									"pm.collectionVariables.set('order_id_2', `order_${timestamp}_002`);",
+									"pm.collectionVariables.set('order_id_3', `order_${timestamp}_003`);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"count\": 3,\n    \"data\": [\n        {\n            \"t-value\": \"bosleyaffiliate_0123\",\n            \"storefront_id\": \"bosley\",\n            \"event_name\": \"consult_started\",\n            \"event_time\": \"2026-01-15T10:15:00Z\",\n            \"order_id\": \"{{order_id_1}}\",\n            \"session_id\": \"sess_123\",\n            \"utm_source\": \"facebook\",\n            \"utm_medium\": \"cpc\",\n            \"utm_campaign\": \"bosley_q1\"\n        },\n        {\n            \"t-value\": \"pfizeraffiliate_0123\",\n            \"storefront_id\": \"pfizer\",\n            \"event_name\": \"rx_issued\",\n            \"event_time\": \"2026-01-15T10:20:30Z\",\n            \"order_id\": \"{{order_id_2}}\",\n            \"session_id\": \"sess_789\",\n            \"utm_source\": \"google\",\n            \"utm_medium\": \"cpc\",\n            \"utm_campaign\": \"pfizer_q1\"\n        },\n        {\n            \"t-value\": \"bosleyaffiliate_0123\",\n            \"storefront_id\": \"bosley\",\n            \"event_name\": \"purchase_completed\",\n            \"event_time\": \"2026-01-15T10:25:00Z\",\n            \"order_id\": \"{{order_id_3}}\",\n            \"order_created_date\": \"2026-01-15T10:25:00Z\",\n            \"order_ship_date\": \"2026-01-15T10:25:00Z\",\n            \"order_revenue\": 80.79,\n            \"session_id\": \"sess_456\",\n            \"utm_source\": \"google\",\n            \"utm_medium\": \"organic\",\n            \"utm_campaign\": \"bosley_q1\"\n        }\n    ],\n    \"error\": \"\",\n    \"next_index\": 1000,\n    \"next_url\": \"https://oms.example.com/events?offset=1000\",\n    \"previous_index\": \"\",\n    \"previous_url\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v1/events",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v1",
+								"events"
+							]
+						},
+						"description": "## Full OMS Batch Format\n\nThis is the exact format sent by OMS Marketing Analytics Event Generator.\n\n### Key Points\n\n- `count`: Total events in batch\n- `data`: Array of event objects\n- `error`: Empty string if no OMS-side errors\n- Pagination fields (`next_index`, `next_url`, etc.) are informational\n\n### Processing\n\n1. Each event's `storefront_id` is resolved to the database ID\n2. Events for unknown/inactive storefronts are rejected\n3. Duplicate `order_id` values are rejected\n4. Accepted events are queued for forwarding"
+					},
+					"response": [
+						{
+							"name": "Successful Ingestion",
+							"originalRequest": {
+								"method": "POST",
+								"url": {
+									"raw": "{{base_url}}/v1/events",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"v1",
+										"events"
+									]
+								}
+							},
+							"status": "Accepted",
+							"code": 202,
+							"_postman_previewlanguage": "json",
+							"body": "{\n    \"accepted\": 3,\n    \"rejected\": 0,\n    \"event_ids\": [\"2025010100001111\", \"2025010100002222\", \"2025020100003333\"],\n    \"errors\": []\n}"
+						}
+					]
+				},
+				{
+					"name": "Ingest Single Event",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 202\", function () {",
+									"    pm.response.to.have.status(202);",
+									"});",
+									"",
+									"pm.test(\"Single event accepted\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.accepted).to.equal(1);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"pm.collectionVariables.set('single_order_id', `single_${Date.now()}`);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"count\": 1,\n    \"data\": [\n        {\n            \"storefront_id\": \"bosley\",\n            \"event_name\": \"page_view\",\n            \"event_time\": \"2026-01-15T12:00:00Z\",\n            \"order_id\": \"{{single_order_id}}\"\n        }\n    ],\n    \"error\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v1/events",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v1",
+								"events"
+							]
+						},
+						"description": "Ingest a single event with minimal required fields."
+					},
+					"response": []
+				},
+				{
+					"name": "Ingest Event with All Fields",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 202\", function () {",
+									"    pm.response.to.have.status(202);",
+									"});",
+									"",
+									"pm.test(\"Event accepted\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.accepted).to.equal(1);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"pm.collectionVariables.set('full_order_id', `full_${Date.now()}`);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"count\": 1,\n    \"data\": [\n        {\n            \"t-value\": \"affiliate_full_test\",\n            \"storefront_id\": \"bosley\",\n            \"event_name\": \"purchase_completed\",\n            \"event_time\": \"2026-01-15T14:30:00Z\",\n            \"order_id\": \"{{full_order_id}}\",\n            \"order_created_date\": \"2026-01-15T14:00:00Z\",\n            \"order_ship_date\": \"2026-01-16T09:00:00Z\",\n            \"order_revenue\": 149.99,\n            \"session_id\": \"sess_full_test\",\n            \"utm_source\": \"google\",\n            \"utm_medium\": \"cpc\",\n            \"utm_campaign\": \"winter_sale_2026\"\n        }\n    ],\n    \"error\": \"\",\n    \"next_index\": 100,\n    \"next_url\": \"https://oms.example.com/events?offset=100\",\n    \"previous_index\": \"\",\n    \"previous_url\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v1/events",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v1",
+								"events"
+							]
+						},
+						"description": "Ingest an event with all possible fields populated."
+					},
+					"response": []
+				},
+				{
+					"name": "Ingest Events - Unknown Storefront",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 202\", function () {",
+									"    pm.response.to.have.status(202);",
+									"});",
+									"",
+									"pm.test(\"Event was rejected\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.accepted).to.equal(0);",
+									"    pm.expect(jsonData.rejected).to.equal(1);",
+									"});",
+									"",
+									"pm.test(\"Error mentions storefront\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.errors.length).to.be.at.least(1);",
+									"    pm.expect(jsonData.errors[0].error.toLowerCase()).to.include('storefront');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"count\": 1,\n    \"data\": [\n        {\n            \"storefront_id\": \"nonexistent-store\",\n            \"event_name\": \"purchase\",\n            \"event_time\": \"2026-01-15T10:00:00Z\",\n            \"order_id\": \"unknown_store_order_001\"\n        }\n    ],\n    \"error\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v1/events",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v1",
+								"events"
+							]
+						},
+						"description": "Test that events for unknown storefronts are rejected with appropriate error."
+					},
+					"response": [
+						{
+							"name": "Unknown Storefront Response",
+							"originalRequest": {
+								"method": "POST",
+								"url": {
+									"raw": "{{base_url}}/v1/events",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"v1",
+										"events"
+									]
+								}
+							},
+							"status": "Accepted",
+							"code": 202,
+							"_postman_previewlanguage": "json",
+							"body": "{\n    \"accepted\": 0,\n    \"rejected\": 1,\n    \"event_ids\": [],\n    \"errors\": [\n        {\n            \"event_id\": \"unknown_store_order_001\",\n            \"error\": \"Storefront 'nonexistent-store' not found\"\n        }\n    ]\n}"
+						}
+					]
+				},
+				{
+					"name": "Ingest Events - Duplicate Order ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 202\", function () {",
+									"    pm.response.to.have.status(202);",
+									"});",
+									"",
+									"pm.test(\"Second event was rejected as duplicate\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.rejected).to.be.at.least(1);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"count\": 1,\n    \"data\": [\n        {\n            \"storefront_id\": \"bosley\",\n            \"event_name\": \"purchase\",\n            \"event_time\": \"2026-01-15T10:00:00Z\",\n            \"order_id\": \"{{order_id_1}}\"\n        }\n    ],\n    \"error\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v1/events",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v1",
+								"events"
+							]
+						},
+						"description": "Test that duplicate order_id values are rejected.\n\n**Note**: Run this after the Full OMS Batch request to test duplicate detection."
+					},
+					"response": []
+				},
+				{
+					"name": "Ingest Events - Partial Success",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 202\", function () {",
+									"    pm.response.to.have.status(202);",
+									"});",
+									"",
+									"pm.test(\"Partial success - some accepted, some rejected\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.accepted).to.be.at.least(1);",
+									"    pm.expect(jsonData.rejected).to.be.at.least(1);",
+									"});",
+									"",
+									"pm.test(\"Errors array has rejection details\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.errors.length).to.be.at.least(1);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"pm.collectionVariables.set('partial_order_1', `partial_${Date.now()}_1`);",
+									"pm.collectionVariables.set('partial_order_2', `partial_${Date.now()}_2`);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"count\": 2,\n    \"data\": [\n        {\n            \"storefront_id\": \"bosley\",\n            \"event_name\": \"purchase\",\n            \"event_time\": \"2026-01-15T10:00:00Z\",\n            \"order_id\": \"{{partial_order_1}}\"\n        },\n        {\n            \"storefront_id\": \"invalid-store\",\n            \"event_name\": \"purchase\",\n            \"event_time\": \"2026-01-15T10:05:00Z\",\n            \"order_id\": \"{{partial_order_2}}\"\n        }\n    ],\n    \"error\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v1/events",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v1",
+								"events"
+							]
+						},
+						"description": "Test batch with mix of valid and invalid events.\n\nFirst event should succeed, second should fail due to unknown storefront."
+					},
+					"response": []
+				},
+				{
+					"name": "Ingest Events - Empty Batch with Error",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 202\", function () {",
+									"    pm.response.to.have.status(202);",
+									"});",
+									"",
+									"pm.test(\"Zero events accepted (empty batch)\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.accepted).to.equal(0);",
+									"    pm.expect(jsonData.rejected).to.equal(0);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"count\": 0,\n    \"data\": [],\n    \"error\": \"OMS database connection failed\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v1/events",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v1",
+								"events"
+							]
+						},
+						"description": "Test that empty batch with error message is accepted.\n\nThis can happen when OMS has an error and cannot provide events."
+					},
+					"response": []
+				},
+				{
+					"name": "Ingest Events - Empty Batch without Error (422)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 422 (validation error)\", function () {",
+									"    pm.response.to.have.status(422);",
+									"});",
+									"",
+									"pm.test(\"Response has validation error detail\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('detail');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"count\": 0,\n    \"data\": [],\n    \"error\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v1/events",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v1",
+								"events"
+							]
+						},
+						"description": "Test that empty batch WITHOUT an error message fails validation.\n\nEmpty data is only allowed when there's an OMS-side error."
+					},
+					"response": []
+				},
+				{
+					"name": "Ingest Events - Large Batch (50 events)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 202\", function () {",
+									"    pm.response.to.have.status(202);",
+									"});",
+									"",
+									"pm.test(\"All 50 events accepted\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.accepted).to.equal(50);",
+									"});",
+									"",
+									"pm.test(\"Response time is reasonable for large batch\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Generate 50 unique events",
+									"const timestamp = Date.now();",
+									"const events = [];",
+									"",
+									"for (let i = 0; i < 50; i++) {",
+									"    const event = {",
+									"        \"t-value\": `affiliate_batch_${String(i).padStart(4, '0')}`,",
+									"        \"storefront_id\": \"bosley\",",
+									"        \"event_name\": i % 2 === 0 ? \"purchase\" : \"add_to_cart\",",
+									"        \"event_time\": new Date(Date.now() + i * 60000).toISOString(),",
+									"        \"order_id\": `batch_${timestamp}_${String(i).padStart(6, '0')}`,",
+									"        \"session_id\": `sess_${String(i).padStart(4, '0')}`,",
+									"        \"utm_source\": i % 3 === 0 ? \"google\" : \"facebook\",",
+									"        \"utm_medium\": \"cpc\",",
+									"        \"utm_campaign\": \"batch_test\"",
+									"    };",
+									"    ",
+									"    if (i % 2 === 0) {",
+									"        event.order_revenue = 25.00 + (i * 1.5);",
+									"    }",
+									"    ",
+									"    events.push(event);",
+									"}",
+									"",
+									"pm.collectionVariables.set('large_batch_events', JSON.stringify(events));"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"count\": 50,\n    \"data\": {{large_batch_events}},\n    \"error\": \"\",\n    \"next_index\": 50,\n    \"next_url\": \"https://oms.example.com/events?offset=50\",\n    \"previous_index\": \"\",\n    \"previous_url\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v1/events",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v1",
+								"events"
+							]
+						},
+						"description": "Test ingestion of a larger batch (50 events) to simulate production-like loads.\n\nEvents are generated dynamically in the pre-request script."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Error Scenarios",
+			"description": "## Error Scenario Tests\n\nTests for various error conditions and edge cases.\n\n### HTTP Status Codes\n\n| Code | Description |\n|------|-------------|\n| 400 | Bad Request (invalid JSON, missing required fields) |\n| 401 | Unauthorized (missing or invalid auth) |\n| 404 | Not Found (resource doesn't exist) |\n| 409 | Conflict (duplicate entry) |\n| 422 | Validation Error (schema validation failed) |\n| 500 | Internal Server Error |",
+			"item": [
+				{
+					"name": "401 - No Authentication",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test(\"Response indicates authentication required\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('detail');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts"
+							]
+						},
+						"description": "Test that protected endpoints reject requests without authentication."
+					},
+					"response": []
+				},
+				{
+					"name": "401 - Invalid Credentials",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "username",
+									"value": "wrong_user",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "wrong_password",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts"
+							]
+						},
+						"description": "Test that invalid credentials are rejected."
+					},
+					"response": []
+				},
+				{
+					"name": "404 - Resource Not Found",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"Response has error detail\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('detail');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts/99999",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts",
+								"99999"
+							]
+						},
+						"description": "Test 404 response for non-existent resource."
+					},
+					"response": []
+				},
+				{
+					"name": "409 - Duplicate Storefront",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 409 (Conflict)\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test(\"Response indicates conflict\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('detail');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"storefront_id\": \"bosley\",\n    \"name\": \"Duplicate Bosley\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts"
+							]
+						},
+						"description": "Test 409 response when creating duplicate storefront_id.\n\n**Note**: Run this after creating the Bosley storefront."
+					},
+					"response": []
+				},
+				{
+					"name": "422 - Invalid Storefront ID Format",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 422\", function () {",
+									"    pm.response.to.have.status(422);",
+									"});",
+									"",
+									"pm.test(\"Response has validation error detail\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('detail');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"storefront_id\": \"invalid store!@#\",\n    \"name\": \"Invalid Store\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts"
+							]
+						},
+						"description": "Test 422 response for invalid storefront_id format (special characters)."
+					},
+					"response": []
+				},
+				{
+					"name": "422 - Missing Required Field",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 422\", function () {",
+									"    pm.response.to.have.status(422);",
+									"});",
+									"",
+									"pm.test(\"Error mentions missing field\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(JSON.stringify(jsonData)).to.include('storefront_id');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Missing storefront_id\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/storefronts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"storefronts"
+							]
+						},
+						"description": "Test 422 response when required field is missing."
+					},
+					"response": []
+				},
+				{
+					"name": "422 - Invalid sGTM URL",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 422\", function () {",
+									"    pm.response.to.have.status(422);",
+									"});",
+									"",
+									"pm.test(\"Error mentions URL validation\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(JSON.stringify(jsonData).toLowerCase()).to.include('url');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"storefront_id\": {{bosley_storefront_id}},\n    \"sgtm_url\": \"not-a-valid-url\",\n    \"client_type\": \"ga4\",\n    \"measurement_id\": \"G-XXXXXXX\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/sgtm-configs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"sgtm-configs"
+							]
+						},
+						"description": "Test 422 response for invalid sGTM URL format."
+					},
+					"response": []
+				},
+				{
+					"name": "422 - GA4 Config Missing measurement_id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 422\", function () {",
+									"    pm.response.to.have.status(422);",
+									"});",
+									"",
+									"pm.test(\"Error mentions measurement_id\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(JSON.stringify(jsonData).toLowerCase()).to.include('measurement');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"storefront_id\": {{bosley_storefront_id}},\n    \"sgtm_url\": \"https://tags.example.com\",\n    \"client_type\": \"ga4\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/v1/sgtm-configs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								"v1",
+								"sgtm-configs"
+							]
+						},
+						"description": "Test 422 response when GA4 config is missing required measurement_id."
+					},
+					"response": []
+				},
+				{
+					"name": "401 - Event Ingestion Without Auth",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"count\": 1,\n    \"data\": [\n        {\n            \"storefront_id\": \"bosley\",\n            \"event_name\": \"purchase\",\n            \"event_time\": \"2026-01-15T10:00:00Z\",\n            \"order_id\": \"unauth_order_001\"\n        }\n    ],\n    \"error\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v1/events",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v1",
+								"events"
+							]
+						},
+						"description": "Test that event ingestion requires authentication."
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

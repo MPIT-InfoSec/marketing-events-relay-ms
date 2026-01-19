@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: marketing-events-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: marketing_events_relay
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ppassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: marketing-events-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=mysql+aiomysql://root:password@db:3306/marketing_events_relay
+      - DEBUG=true
+      - ENVIRONMENT=development
+      - BASIC_AUTH_USERNAME=admin
+      - BASIC_AUTH_PASSWORD=changeme123
+      - LOG_LEVEL=INFO
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Background Worker
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: marketing-events-worker
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.retry_worker"]
+    environment:
+      - DATABASE_URL=mysql+aiomysql://root:password@db:3306/marketing_events_relay
+      - DEBUG=true
+      - ENVIRONMENT=development
+      - LOG_LEVEL=INFO
+      - EVENT_BATCH_SIZE=100
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+  # Alembic migrations (run once)
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: marketing-events-migrate
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      - DATABASE_URL=mysql+pymysql://root:password@db:3306/marketing_events_relay
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
